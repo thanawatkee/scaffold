@@ -1,0 +1,63 @@
+pubspec.yaml
+
+dependencies:
+  image_picker: ^1.1.1   
+  permission_handler: ^11.3.1
+
+main.dart
+
+import 'package:permission_handler/permission_handler.dart';
+
+Future<bool> _ensureCameraPermission() async {
+  final status = await Permission.camera.status;
+  if (status.isGranted) return true;
+
+  final result = await Permission.camera.request();
+  return result.isGranted;
+}
+
+Future<void> _captureImage() async {
+  if (_counter != 0) return;
+
+  // 1) ขอสิทธิ์ก่อน
+  final ok = await _ensureCameraPermission();
+  if (!ok) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("ต้องอนุญาตสิทธิ์กล้องก่อน")),
+      );
+    }
+    return;
+  }
+
+  try {
+    final picker = ImagePicker();
+    final xfile = await picker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: CameraDevice.rear, // ช่วยบางกรณี
+    );
+    if (xfile == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("เปิดกล้องไม่สำเร็จหรือถูกยกเลิก")),
+        );
+      }
+      return;
+    }
+
+    final dir = await getApplicationDocumentsDirectory();
+    final savePath = p.join(dir.path, "counter0${p.extension(xfile.path)}");
+    await File(xfile.path).copy(savePath);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_imgKey, savePath);
+
+    if (mounted) setState(() => _imagePath = savePath);
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("เกิดข้อผิดพลาดเปิดกล้อง: $e")),
+      );
+    }
+  }
+}
